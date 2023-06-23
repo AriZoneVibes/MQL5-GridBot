@@ -8,6 +8,10 @@
 #property version "1.0"
 
 #property script_show_inputs
+
+#include <Trade\Trade.mqh>
+CTrade *trade;
+
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
@@ -30,9 +34,9 @@ enum selectGridDirection
 // If they start to use optimization, update input to sinput
 // https://www.mql5.com/en/docs/basis/variables/inputvariables#sinput
 
-sinput int expertAdvisorID = rand() % 100 + 1; // Expert Advisor ID "Magic Number"
+input int expertAdvisorID = 31254; // Expert Advisor ID "Magic Number"
 
-sinput string symbol; // Symbol
+sinput string currentSymbol; // Symbol
 
 input selectGridDirection gridDirection = neutralDirection;
 
@@ -58,12 +62,13 @@ input double stopTriggerUpperPrice;  // Upper Price
 input bool cancelOrdersOnStop;       // Cancel all orders on stop
 input bool closePositionsOnStop;     // Close all positions on stop
 
+// ! Change to Vector of Structures
 double gridPrice[];                                      // Array containing all the prices to work with
 double orderSize = (initialMagin * leverage) / gridSize; // * Size of each Buy/Sell order. Need to confirm need of leverage
 
 bool dataValidation()
 {
-  bool symbolValidation = SymbolInfoInteger(symbol, SYMBOL_EXIST);
+  bool symbolValidation = SymbolInfoInteger(currentSymbol, SYMBOL_EXIST);
   if (symbolValidation == false)
   {
     Print("Symbol not found");
@@ -106,7 +111,7 @@ void priceSizeArithmetic()
   {
     gridPrice[i] = price;
     price += stepPrice;
-    Print("✔️[gridbot.mq5:109]: price: ", price);
+    Print("✔️[gridbot.mq5:113]: price: ", price);
   }
 }
 
@@ -119,7 +124,7 @@ void priceSizeGeometric()
   {
     gridPrice[i] = price;
     price *= pow(stepPrice, i);
-    Print("✔️[gridbot.mq5:122]: price: ", price);
+    Print("✔️[gridbot.mq5:126]: price: ", price);
   }
 }
 
@@ -132,26 +137,26 @@ void fillPriceArray()
     priceSizeGeometric();
 }
 
-void initialOrders(double price) // * Currently working here
+void initialOrders(double price)
 {
+  MqlTradeRequest request;
+
+  request.action = TRADE_ACTION_DEAL; // TODO: Finish filling structure
+
   for (int i = 0; i <= ArraySize(gridPrice); i++)
   {
     if (gridPrice[i] <= price)
     {
-      placeOrderBuy(gridPrice[i]);
+      placeOrder(gridPrice[i]);
     }
     else
     {
-      placeOrderSell(gridPrice[i]);
+      placeOrder(gridPrice[i]);
     }
   }
 }
 
-void placeOrderBuy(double price)
-{
-}
-
-void placeOrderSell(double price)
+void placeOrder(double price)
 {
 }
 
@@ -169,9 +174,7 @@ int OnInit()
     return (INIT_FAILED); // F
   }
 
-  ExpertBase::Magic(expertAdvisorID); // TODO: Set the ID
-
-  currentPriceCheck = SymbolInfoTick(symbol, currentPrice); // Grab Current Price to set orders
+  currentPriceCheck = SymbolInfoTick(currentSymbol, currentPrice); // Grab Current Price to set orders
   if (currentPriceCheck == false)
   {
     printf("Current price of Symbol couldn't be found");
@@ -191,11 +194,11 @@ void OnDeinit(const int reason)
 {
   if (closePositionsOnStop == true)
   {
-    closeAllPositions(); // TODO
+    // closeAllPositions(); // TODO
   }
   if (cancelOrdersOnStop == true)
   {
-    closeAllOrders(); // TODO
+    // closeAllOrders(); // TODO
   }
 
   //---
