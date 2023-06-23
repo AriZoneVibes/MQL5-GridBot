@@ -4,8 +4,8 @@
 //|                                             https://www.mql5.com |
 //+------------------------------------------------------------------+
 #property copyright "AriZone2023"
-#property link "https://www.mql5.com"
-#property version "1.00"
+#property link "https://github.com/AriZoneVibes/MQL5-GridBot"
+#property version "1.0"
 
 #property script_show_inputs
 //+------------------------------------------------------------------+
@@ -16,7 +16,7 @@
 enum selectGridType
 {
   arithmetic = 0, // Arithmetic (Each Grid has an equal price difference)
-  geometric = 1,  // TODO: Geometric (Each Grid has an equal price diffence ratio)
+  geometric = 1,  // Geometric (Each Grid has an equal price diffence ratio)
 };
 
 enum selectGridDirection
@@ -30,7 +30,9 @@ enum selectGridDirection
 // If they start to use optimization, update input to sinput
 // https://www.mql5.com/en/docs/basis/variables/inputvariables#sinput
 
-input string symbol; // Symbol
+sinput int expertAdvisorID = rand() % 100 + 1; // Expert Advisor ID "Magic Number"
+
+sinput string symbol; // Symbol
 
 input selectGridDirection gridDirection = neutralDirection;
 
@@ -56,16 +58,55 @@ input double stopTriggerUpperPrice;  // Upper Price
 input bool cancelOrdersOnStop;       // Cancel all orders on stop
 input bool closePositionsOnStop;     // Close all positions on stop
 
-double gridPrice[]; // Array containing all the prices to work with
+double gridPrice[];                                      // Array containing all the prices to work with
+double orderSize = (initialMagin * leverage) / gridSize; // * Size of each Buy/Sell order. Need to confirm need of leverage
+
+bool dataValidation()
+{
+  bool symbolValidation = SymbolInfoInteger(symbol, SYMBOL_EXIST);
+  if (symbolValidation == false)
+  {
+    Print("Symbol not found");
+    return false;
+  }
+  if (upperPrice <= lowerPrice)
+  {
+    Print("Upper Limit cannot be lower or equal to the Lower Limit");
+    return false;
+  }
+  if (gridSize <= 0)
+  {
+    Print("Number of grids cannot be equal or lower to zero");
+    return false;
+  }
+  if (initialMagin <= 0 || leverage <= 0)
+  {
+    Print("Investment cannot be lower or equal to zero");
+    return false;
+  }
+  if (gridTriggerUpperPrice <= gridTriggerBottomPrice)
+  {
+    Print("Grid Trigger Activation Upper Price cannot be lower or equal to the Lower Price");
+    return false;
+  }
+  if (stopTriggerUpperPrice <= stopTriggerBottomPrice)
+  {
+    Print("Grid Stop Activation Upper Price cannot be lower or equal to the Lower Price");
+    return false;
+  }
+  return true;
+}
 
 void priceSizeArithmetic()
 {
   double price = lowerPrice;
   double stepPrice = (upperPrice - lowerPrice) / gridSize;
+
   for (int i = 0; price <= upperPrice; i++)
   {
     gridPrice[i] = price;
     price += stepPrice;
+    Print("✔️[gridbot.mq5:109]: price: ", price);
   }
 }
 
@@ -73,29 +114,73 @@ void priceSizeGeometric()
 {
   double price = lowerPrice;
   double stepPrice = pow((upperPrice / lowerPrice), (1 / gridSize));
-  for (int i = 0; price <= upperPrice; i++)
+
+  for (int i = 1; price <= upperPrice; i++) // Can change the loop to stop when grid size +1 is reached
   {
     gridPrice[i] = price;
-    price += pow(stepPrice, i);
+    price *= pow(stepPrice, i);
+    Print("✔️[gridbot.mq5:122]: price: ", price);
   }
 }
 
 void fillPriceArray()
 {
-  ArrayResize(gridPrice, gridSize + 2);
+  ArrayResize(gridPrice, gridSize);
   if (gridType == 0)
     priceSizeArithmetic();
   else
     priceSizeGeometric();
 }
 
+void initialOrders(double price) // * Currently working here
+{
+  for (int i = 0; i <= ArraySize(gridPrice); i++)
+  {
+    if (gridPrice[i] <= price)
+    {
+      placeOrderBuy(gridPrice[i]);
+    }
+    else
+    {
+      placeOrderSell(gridPrice[i]);
+    }
+  }
+}
+
+void placeOrderBuy(double price)
+{
+}
+
+void placeOrderSell(double price)
+{
+}
+
 int OnInit()
 {
   //---
-  // TODO: Check all Inputs are valid
-  // TODO: Set step size
-  // TODO: Set Order Size
-  fillPriceArray();
+  // Check all Inputs are valid
+  bool dataIsValid = false;
+  bool currentPriceCheck = false;
+  MqlTick currentPrice;
+
+  dataIsValid = dataValidation();
+  if (dataIsValid == false)
+  {
+    return (INIT_FAILED); // F
+  }
+
+  ExpertBase::Magic(expertAdvisorID); // TODO: Set the ID
+
+  currentPriceCheck = SymbolInfoTick(symbol, currentPrice); // Grab Current Price to set orders
+  if (currentPriceCheck == false)
+  {
+    printf("Current price of Symbol couldn't be found");
+    return (INIT_FAILED);
+  }
+
+  fillPriceArray(); // Set Prices where orders will happen
+
+  initialOrders(currentPrice.last); // Place Initial Orders. Decide the direction based on Last Price
   //---
   return (INIT_SUCCEEDED);
 }
@@ -104,6 +189,15 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
+  if (closePositionsOnStop == true)
+  {
+    closeAllPositions(); // TODO
+  }
+  if (cancelOrdersOnStop == true)
+  {
+    closeAllOrders(); // TODO
+  }
+
   //---
 }
 //+------------------------------------------------------------------+

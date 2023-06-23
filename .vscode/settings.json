@@ -5,7 +5,8 @@
   "C_Cpp.default.includePath": [
     "${workspaceFolder}/**",
     "${workspaceFolder}/Include",
-    "c:\\Program Files\\MetaTrader 5\\MQL5\\Include\\Include"
+    "c:\\Program Files\\MetaTrader 5\\MQL5\\Include\\Include",
+    "c:\\Program Files\\MetaTrader 5\\MQL5\\Include"
   ],
   "C_Cpp.default.compilerPath": "",
   "C_Cpp.default.intelliSenseMode": "gcc-x64",
