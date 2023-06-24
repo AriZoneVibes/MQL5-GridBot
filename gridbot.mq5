@@ -1,15 +1,16 @@
 //+------------------------------------------------------------------+
 //|                                                      GridBot.mq5 |
 //|                                                      AriZone2023 |
-//|                                             https://www.mql5.com |
+//|                     https://github.com/AriZoneVibes/MQL5-GridBot |
 //+------------------------------------------------------------------+
-#property copyright "AriZone2023"
+#property copyright "AriZone 2023 owo"
 #property link "https://github.com/AriZoneVibes/MQL5-GridBot"
 #property version "1.0"
 
 #property script_show_inputs
 
 #include <Trade\Trade.mqh>
+
 CTrade *trade;
 
 //+------------------------------------------------------------------+
@@ -34,7 +35,7 @@ enum selectGridDirection
 // If they start to use optimization, update input to sinput
 // https://www.mql5.com/en/docs/basis/variables/inputvariables#sinput
 
-input int expertAdvisorID = 31254; // Expert Advisor ID "Magic Number"
+sinput int expertAdvisorID = 31254; // Expert Advisor ID "Magic Number"
 
 sinput string currentSymbol; // Symbol
 
@@ -62,8 +63,16 @@ input double stopTriggerUpperPrice;  // Upper Price
 input bool cancelOrdersOnStop;       // Cancel all orders on stop
 input bool closePositionsOnStop;     // Close all positions on stop
 
-// ! Change to Vector of Structures
-double gridPrice[];                                      // Array containing all the prices to work with
+double currentMargin = 0;
+
+struct gridOrders
+{
+  double price;
+  int id;
+  string direction;
+};
+gridOrders gridPrice[]; // Array containing all the prices to work with
+
 double orderSize = (initialMagin * leverage) / gridSize; // * Size of each Buy/Sell order. Need to confirm need of leverage
 
 bool dataValidation()
@@ -109,9 +118,9 @@ void priceSizeArithmetic()
 
   for (int i = 0; price <= upperPrice; i++)
   {
-    gridPrice[i] = price;
+    gridPrice[i].price = price;
     price += stepPrice;
-    Print("✔️[gridbot.mq5:113]: price: ", price);
+    Print("✔️[gridbot.mq5:123]: price: ", price);
   }
 }
 
@@ -120,17 +129,17 @@ void priceSizeGeometric()
   double price = lowerPrice;
   double stepPrice = pow((upperPrice / lowerPrice), (1 / gridSize));
 
-  for (int i = 1; price <= upperPrice; i++) // Can change the loop to stop when grid size +1 is reached
+  for (int i = 0; price <= upperPrice; i++)
   {
-    gridPrice[i] = price;
+    gridPrice[i].price = price;
     price *= pow(stepPrice, i);
-    Print("✔️[gridbot.mq5:126]: price: ", price);
+    Print("✔️[gridbot.mq5:136]: price: ", price);
   }
 }
 
 void fillPriceArray()
 {
-  ArrayResize(gridPrice, gridSize);
+  ArrayResize(gridPrice, gridSize + 1);
   if (gridType == 0)
     priceSizeArithmetic();
   else
@@ -145,18 +154,22 @@ void initialOrders(double price)
 
   for (int i = 0; i <= ArraySize(gridPrice); i++)
   {
-    if (gridPrice[i] <= price)
+    if (gridPrice[i].price <= price)
     {
-      placeOrder(gridPrice[i]);
+      placeOrder(gridPrice[i].price);
     }
     else
     {
-      placeOrder(gridPrice[i]);
+      placeOrder(gridPrice[i].price);
     }
   }
 }
 
 void placeOrder(double price)
+{
+}
+
+void closeAllPositions()
 {
 }
 
@@ -194,7 +207,7 @@ void OnDeinit(const int reason)
 {
   if (closePositionsOnStop == true)
   {
-    // closeAllPositions(); // TODO
+    closeAllPositions(); // TODO
   }
   if (cancelOrdersOnStop == true)
   {
