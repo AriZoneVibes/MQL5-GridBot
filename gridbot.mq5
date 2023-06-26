@@ -65,11 +65,17 @@ input bool closePositionsOnStop;     // Close all positions on stop
 
 double currentMargin = 0;
 
+enum orderDirection
+{
+  orderLong,
+  orderShort
+};
+
 struct gridOrders
 {
   double price;
   int id;
-  string direction;
+  orderDirection direction;
 };
 gridOrders gridPrice[]; // Array containing all the prices to work with
 
@@ -120,7 +126,7 @@ void priceSizeArithmetic()
   {
     gridPrice[i].price = price;
     price += stepPrice;
-    Print("✔️[gridbot.mq5:123]: price: ", price);
+    Print("✔️[gridbot.mq5:129]: price: ", price);
   }
 }
 
@@ -133,7 +139,7 @@ void priceSizeGeometric()
   {
     gridPrice[i].price = price;
     price *= pow(stepPrice, i);
-    Print("✔️[gridbot.mq5:136]: price: ", price);
+    Print("✔️[gridbot.mq5:142]: price: ", price);
   }
 }
 
@@ -148,28 +154,51 @@ void fillPriceArray()
 
 void initialOrders(double price)
 {
-  MqlTradeRequest request;
-
-  request.action = TRADE_ACTION_DEAL; // TODO: Finish filling structure
-
   for (int i = 0; i <= ArraySize(gridPrice); i++)
   {
-    if (gridPrice[i].price <= price)
-    {
-      placeOrder(gridPrice[i].price);
-    }
-    else
-    {
-      placeOrder(gridPrice[i].price);
-    }
+    directionOrder(i, price);
   }
 }
 
-void placeOrder(double price)
+void directionOrder(int i, double price)
 {
+  if (gridPrice[i].price <= price)
+  {
+    gridPrice[i].direction = orderLong;
+    placeOrder(gridPrice[i].price, ORDER_TYPE_BUY_LIMIT);
+  }
+  else
+  {
+    gridPrice[i].direction = orderShort;
+    placeOrder(gridPrice[i].price, ORDER_TYPE_SELL_LIMIT);
+  }
+}
+
+void placeOrder(double price, ENUM_ORDER_TYPE direction)
+{
+  MqlTradeRequest request;
+  MqlTradeResult reply;
+  MqlTradeCheckResult replyValidate;
+
+  // Stucture to make the trade request at Market
+  request.action = TRADE_ACTION_DEAL;
+  request.magic = expertAdvisorID;
+  request.symbol = currentSymbol;
+  request.price = price;
+  request.volume = orderSize;
+  request.type = direction;
+  request.type_filling = ORDER_FILLING_FOK;
+
+  OrderCheck(request, replyValidate);
+  OrderSend(request, reply); // * Read function documentation
+  // Return order number
 }
 
 void closeAllPositions()
+{
+}
+
+void closeAllOrders()
 {
 }
 
@@ -211,7 +240,7 @@ void OnDeinit(const int reason)
   }
   if (cancelOrdersOnStop == true)
   {
-    // closeAllOrders(); // TODO
+    closeAllOrders(); // TODO
   }
 
   //---
