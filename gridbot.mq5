@@ -74,7 +74,7 @@ enum orderDirection
 struct gridOrders
 {
   double price;
-  int id;
+  ulong ticket;
   orderDirection direction;
 };
 gridOrders gridPrice[]; // Array containing all the prices to work with
@@ -165,23 +165,24 @@ void directionOrder(int i, double price)
   if (gridPrice[i].price <= price)
   {
     gridPrice[i].direction = orderLong;
-    placeOrder(gridPrice[i].price, ORDER_TYPE_BUY_LIMIT);
+    gridPrice[i].ticket = placeOrder(gridPrice[i].price, ORDER_TYPE_BUY_LIMIT);
   }
   else
   {
     gridPrice[i].direction = orderShort;
-    placeOrder(gridPrice[i].price, ORDER_TYPE_SELL_LIMIT);
+    gridPrice[i].ticket = placeOrder(gridPrice[i].price, ORDER_TYPE_SELL_LIMIT);
   }
 }
 
-void placeOrder(double price, ENUM_ORDER_TYPE direction)
+ulong placeOrder(double price, ENUM_ORDER_TYPE direction)
 {
   MqlTradeRequest request;
   MqlTradeResult reply;
   MqlTradeCheckResult replyValidate;
+  bool orderReplyCheck;
 
   // Stucture to make the trade request at Market
-  request.action = TRADE_ACTION_DEAL;
+  request.action = TRADE_ACTION_PENDING;
   request.magic = expertAdvisorID;
   request.symbol = currentSymbol;
   request.price = price;
@@ -189,9 +190,27 @@ void placeOrder(double price, ENUM_ORDER_TYPE direction)
   request.type = direction;
   request.type_filling = ORDER_FILLING_FOK;
 
-  OrderCheck(request, replyValidate);
-  OrderSend(request, reply); // * Read function documentation
-  // Return order number
+  orderReplyCheck = OrderCheck(request, replyValidate);
+  Print(replyValidate.comment);
+  Print(reply.retcode);
+  orderReply(orderReplyCheck);
+
+  orderReplyCheck = OrderSend(request, reply); // * Read function documentation
+  orderReply(orderReplyCheck);
+  Print("Order #", reply.order);
+  Print(reply.comment);
+  Print(reply.retcode);
+
+  return reply.order;
+}
+
+void orderReply(bool reply)
+{
+  if (reply == false)
+  {
+    Print("Order Failed. Exiting EA");
+    ExpertRemove();
+  }
 }
 
 void closeAllPositions()
