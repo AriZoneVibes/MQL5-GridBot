@@ -20,15 +20,15 @@ CTrade *trade;
 //--- Input Parameters
 enum selectGridType
 {
-  arithmetic = 0, // Arithmetic (Each Grid has an equal price difference)
-  geometric = 1,  // Geometric (Each Grid has an equal price diffence ratio)
+  arithmetic, // Arithmetic (Each Grid has an equal price difference)
+  geometric,  // Geometric (Each Grid has an equal price diffence ratio)
 };
 
 enum selectGridDirection
 {
-  neutralDirection = 0, // Neutral
-  longDirection = 1,    // TODO: Long
-  shortDirection = 2,   // TODO: Short
+  neutralDirection, // Neutral
+  longDirection,    // TODO: Long
+  shortDirection,   // TODO: Short
 };
 
 // * Make separate functions for each action
@@ -152,22 +152,23 @@ void fillPriceArray()
     priceSizeGeometric();
 }
 
-void initialOrders(double price)
+void initialOrders(double currentPrice)
 {
   for (int i = 0; i <= ArraySize(gridPrice); i++)
   {
-    directionOrder(i, price);
+    directionOrder(i, currentPrice);
   }
 }
 
-void directionOrder(int i, double price)
+void directionOrder(int i, double currentPrice)
 {
-  if (gridPrice[i].price <= price)
+  if (gridPrice[i].price <= currentPrice)
   {
     gridPrice[i].direction = orderLong;
     gridPrice[i].ticket = placeOrder(gridPrice[i].price, ORDER_TYPE_BUY_LIMIT);
+    // * Chance to CTrade? https://www.mql5.com/en/articles/481
   }
-  else
+  else //* Need to skip first sell order ... or last long
   {
     gridPrice[i].direction = orderShort;
     gridPrice[i].ticket = placeOrder(gridPrice[i].price, ORDER_TYPE_SELL_LIMIT);
@@ -185,8 +186,10 @@ ulong placeOrder(double price, ENUM_ORDER_TYPE direction)
   request.action = TRADE_ACTION_PENDING;
   request.magic = expertAdvisorID;
   request.symbol = currentSymbol;
-  request.price = price;
   request.volume = orderSize;
+  request.price = price;
+  // request.sl =
+  // request.tp =
   request.type = direction;
   request.type_filling = ORDER_FILLING_FOK;
 
@@ -195,7 +198,7 @@ ulong placeOrder(double price, ENUM_ORDER_TYPE direction)
   Print(reply.retcode);
   orderReply(orderReplyCheck);
 
-  orderReplyCheck = OrderSend(request, reply); // * Read function documentation
+  orderReplyCheck = OrderSend(request, reply);
   orderReply(orderReplyCheck);
   Print("Order #", reply.order);
   Print(reply.comment);
@@ -272,3 +275,11 @@ void OnTick()
   //---
 }
 //+------------------------------------------------------------------+
+void OnTradeTransaction(
+    const MqlTradeTransaction &trans,
+    const MqlTradeRequest &request,
+    const MqlTradeResult &result)
+{
+  // ! TODO:Next Step, handle orders while running "OnTradeTransaction"
+  // https://www.binance.com/en/support/faq/what-is-spot-grid-trading-and-how-does-it-work-d5f441e8ab544a5b98241e00efb3a4ab
+}
