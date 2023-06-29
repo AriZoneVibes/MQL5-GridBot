@@ -154,97 +154,101 @@ void fillPriceArray()
 
 void initialOrders(double currentPrice)
 {
-  for (int i = 0; i <= ArraySize(gridPrice); i++)
-  {
-    directionOrder(i, currentPrice);
-  }
-}
+  int i = 0;
 
-void directionOrder(int i, double currentPrice)
-{
-
-  if (gridPrice[i].price <= currentPrice)
+  while (gridPrice[i].price <= currentPrice) // Place Buy Orders
   {
     gridPrice[i].direction = orderLong;
-    gridPrice[i].ticket = placeOrder(gridPrice[i].price, ORDER_TYPE_BUY_LIMIT);
-    // * Change to CTrade Library https://www.mql5.com/en/articles/481
-
-    //* First code, then organize into methods
-    //* Move the if into a for/while. Loop while gridprice[i].price <= currentPrice.
-    //* Skip next price when leaving.
-    //* Continue Loop until finish all the array.
+    placeOrder(i);
+    i++;
   }
-  //* Need to skip first sell order ... or last long
-  else
+
+  gridPrice[i].direction = orderVoid; // Skip the middle order
+  gridPrice[i].ticket = 0;
+  i++;
+
+  while (i <= ArraySize(gridPrice)) // Place Sell Orders
   {
     gridPrice[i].direction = orderShort;
-    gridPrice[i].ticket = placeOrder(gridPrice[i].price, ORDER_TYPE_SELL_LIMIT);
+    placeOrder(i);
+    i++;
   }
 }
 
-ulong placeOrder(double price, ENUM_ORDER_TYPE direction)
+void placeOrder(int orderIndex)
 {
-  MqlTradeRequest request;
-  MqlTradeResult reply;
-  MqlTradeCheckResult replyValidate;
-  bool orderReplyCheck;
-  bool check = trade.Sell(orderSize, currentSymbol);
+  bool reply = false;
 
-  // Stucture to make the trade request at Market
-  request.action = TRADE_ACTION_PENDING;
-  request.magic = expertAdvisorID;
-  request.symbol = currentSymbol;
-  request.volume = orderSize;
-  request.price = price;
-  // request.sl =
-  // request.tp =
-  request.type = direction;
-  request.type_filling = ORDER_FILLING_FOK;
+  switch (gridPrice[orderIndex].direction)
+  {
+  case orderLong:
+    reply = trade.BuyLimit(orderSize, gridPrice[orderIndex].price);
+    break;
 
-  orderReplyCheck = OrderCheck(request, replyValidate);
-  Print(replyValidate.comment);
-  Print(reply.retcode);
-  orderReply(orderReplyCheck);
+  case orderShort:
+    reply = trade.SellLimit(orderSize, gridPrice[orderIndex].price);
+    break;
 
-  orderReplyCheck = OrderSend(request, reply);
-  orderReply(orderReplyCheck);
-  Print("Order #", reply.order);
-  Print(reply.comment);
-  Print(reply.retcode);
+  case orderVoid:
+    break;
+  }
 
-  return reply.order;
+  orderReply(reply);
+  gridPrice[orderIndex].ticket = trade.ResultOrder();
 }
 
 void orderReply(bool reply)
 {
   if (reply == false)
   {
-    Print("Order Failed. Exiting EA");
+    Print("Order Limit method failed.");
+    Print("Return code=", trade.ResultRetcode(), ". Code description: ", trade.ResultRetcodeDescription());
     ExpertRemove();
+  }
+  else
+  {
+    Print("Order Limit executed successfully..");
+    Print("Return code=", trade.ResultRetcode(), ". Code description: ", trade.ResultRetcodeDescription());
   }
 }
 
 void closeAllPositions()
 {
+  trade.PositionClose(currentSymbol);
 }
 
 void closeAllOrders()
 {
+  for (int i = 0; i < ArraySize(gridPrice); i++)
+  {
+    if (gridPrice[i].ticket != 0)
+    {
+      trade.OrderDelete(gridPrice[i].ticket);
+    }
+  }
 }
 
 int OnInit()
 {
   //---
-  // Check all Inputs are valid
   bool dataIsValid = false;
   bool currentPriceCheck = false;
   MqlTick currentPrice;
 
+  // Check all Inputs are valid
   dataIsValid = dataValidation();
   if (dataIsValid == false)
   {
     return (INIT_FAILED); // F
   }
+
+  // Global trading settings
+  trade.SetExpertMagicNumber(expertAdvisorID);
+  trade.SetTypeFilling(ORDER_FILLING_RETURN);
+  trade.LogLevel(2);
+  trade.SetAsyncMode(true);
+  // trade.SetDeviationInPoints(deviation);
+  // * Ask if slippage is neccesary
 
   currentPriceCheck = SymbolInfoTick(currentSymbol, currentPrice); // Grab Current Price to set orders
   if (currentPriceCheck == false)
