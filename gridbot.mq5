@@ -10,8 +10,7 @@
 #property script_show_inputs
 
 #include <Trade\Trade.mqh>
-
-CTrade *trade;
+CTrade trade;
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -20,8 +19,8 @@ CTrade *trade;
 //--- Input Parameters
 enum selectGridType
 {
-  arithmetic, // Arithmetic (Each Grid has an equal price difference)
-  geometric,  // Geometric (Each Grid has an equal price diffence ratio)
+  arithmetic, // Arithmetic Each Grid has an equal price difference
+  geometric   // Geometric Each Grid has an equal price diffence ratio
 };
 
 enum selectGridDirection
@@ -68,7 +67,8 @@ double currentMargin = 0;
 enum orderDirection
 {
   orderLong,
-  orderShort
+  orderShort,
+  orderVoid
 };
 
 struct gridOrders
@@ -162,13 +162,20 @@ void initialOrders(double currentPrice)
 
 void directionOrder(int i, double currentPrice)
 {
+
   if (gridPrice[i].price <= currentPrice)
   {
     gridPrice[i].direction = orderLong;
     gridPrice[i].ticket = placeOrder(gridPrice[i].price, ORDER_TYPE_BUY_LIMIT);
-    // * Chance to CTrade? https://www.mql5.com/en/articles/481
+    // * Change to CTrade Library https://www.mql5.com/en/articles/481
+
+    //* First code, then organize into methods
+    //* Move the if into a for/while. Loop while gridprice[i].price <= currentPrice.
+    //* Skip next price when leaving.
+    //* Continue Loop until finish all the array.
   }
-  else //* Need to skip first sell order ... or last long
+  //* Need to skip first sell order ... or last long
+  else
   {
     gridPrice[i].direction = orderShort;
     gridPrice[i].ticket = placeOrder(gridPrice[i].price, ORDER_TYPE_SELL_LIMIT);
@@ -181,6 +188,7 @@ ulong placeOrder(double price, ENUM_ORDER_TYPE direction)
   MqlTradeResult reply;
   MqlTradeCheckResult replyValidate;
   bool orderReplyCheck;
+  bool check = trade.Sell(orderSize, currentSymbol);
 
   // Stucture to make the trade request at Market
   request.action = TRADE_ACTION_PENDING;
@@ -280,6 +288,6 @@ void OnTradeTransaction(
     const MqlTradeRequest &request,
     const MqlTradeResult &result)
 {
-  // ! TODO:Next Step, handle orders while running "OnTradeTransaction"
+  //* Next Step, handle orders while running "OnTradeTransaction"
   // https://www.binance.com/en/support/faq/what-is-spot-grid-trading-and-how-does-it-work-d5f441e8ab544a5b98241e00efb3a4ab
 }
