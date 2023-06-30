@@ -12,10 +12,6 @@
 #include <Trade\Trade.mqh>
 CTrade trade;
 
-//+------------------------------------------------------------------+
-//| Expert initialization function                                   |
-//+------------------------------------------------------------------+
-
 //--- Input Parameters
 enum selectGridType
 {
@@ -38,7 +34,7 @@ sinput int expertAdvisorID = 31254; // Expert Advisor ID "Magic Number"
 
 sinput string currentSymbol; // Symbol
 
-input selectGridDirection gridDirection = neutralDirection;
+input selectGridDirection gridDirection = neutralDirection; // Direction
 
 input group "Price Range";
 input double lowerPrice; // Lower Price
@@ -77,7 +73,7 @@ struct gridOrders
   ulong ticket;
   orderDirection direction;
 };
-gridOrders gridPrice[]; // Array containing all the prices to work with
+gridOrders gridPrice[]; // Array containing all the orders
 
 double orderSize = (initialMagin * leverage) / gridSize; // * Size of each Buy/Sell order. Need to confirm need of leverage
 
@@ -126,7 +122,7 @@ void priceSizeArithmetic()
   {
     gridPrice[i].price = price;
     price += stepPrice;
-    Print("✔️[gridbot.mq5:129]: price: ", price);
+    Print("✔️[gridbot.mq5:125]: price: ", price);
   }
 }
 
@@ -139,7 +135,7 @@ void priceSizeGeometric()
   {
     gridPrice[i].price = price;
     price *= pow(stepPrice, i);
-    Print("✔️[gridbot.mq5:142]: price: ", price);
+    Print("✔️[gridbot.mq5:138]: price: ", price);
   }
 }
 
@@ -195,11 +191,12 @@ void placeOrder(int orderIndex)
 
   orderReply(reply);
   gridPrice[orderIndex].ticket = trade.ResultOrder();
+  Print("✔️[GridTradingBot.mq5:194]: ticket: ", gridPrice[orderIndex].ticket);
 }
 
 void orderReply(bool reply)
 {
-  if (reply == false)
+  if (!reply)
   {
     Print("Order Limit method failed.");
     Print("Return code=", trade.ResultRetcode(), ". Code description: ", trade.ResultRetcodeDescription());
@@ -207,9 +204,55 @@ void orderReply(bool reply)
   }
   else
   {
-    Print("Order Limit executed successfully..");
+    Print("Order Limit executed successfully.");
     Print("Return code=", trade.ResultRetcode(), ". Code description: ", trade.ResultRetcodeDescription());
   }
+}
+
+void updateOrders(ulong ticket)
+{
+  int orderIndex = 0; // Can make it so the indexFromTicket returns -1 if not found
+
+  orderIndex = indexFromTicket(ticket);
+  gridPrice[orderIndex].direction = orderVoid;
+
+  switch (gridPrice[orderIndex].direction)
+  {
+  case orderLong:
+    gridPrice[orderIndex + 1].direction = orderShort;
+    placeOrder(orderIndex + 1);
+    break;
+
+  case orderShort:
+    gridPrice[orderIndex - 1].direction = orderLong;
+    placeOrder(orderIndex - 1);
+    break;
+
+  case orderVoid:
+    break;
+  }
+}
+
+int indexFromTicket(ulong ticket)
+{
+  // I can be your angle
+  // for (int i = 0; i < ArraySize(gridPrice); i++)
+  // {
+  //   if (ticket == gridPrice[i].ticket)
+  //   {
+  //     return i;
+  //   }
+  // }
+  // Print("Ticket not found");
+  // ExpertRemove();
+
+  // or yuor devil
+  int i = 0;
+  while (ticket != gridPrice[i].ticket)
+  {
+    i++;
+  }
+  return i;
 }
 
 void closeAllPositions()
@@ -231,13 +274,10 @@ void closeAllOrders()
 int OnInit()
 {
   //---
-  bool dataIsValid = false;
-  bool currentPriceCheck = false;
   MqlTick currentPrice;
 
   // Check all Inputs are valid
-  dataIsValid = dataValidation();
-  if (dataIsValid == false)
+  if (!dataValidation())
   {
     return (INIT_FAILED); // F
   }
@@ -250,8 +290,7 @@ int OnInit()
   // trade.SetDeviationInPoints(deviation);
   // * Ask if slippage is neccesary
 
-  currentPriceCheck = SymbolInfoTick(currentSymbol, currentPrice); // Grab Current Price to set orders
-  if (currentPriceCheck == false)
+  if (!SymbolInfoTick(currentSymbol, currentPrice)) // Grab Current Price to set orders
   {
     printf("Current price of Symbol couldn't be found");
     return (INIT_FAILED);
@@ -260,12 +299,10 @@ int OnInit()
   fillPriceArray(); // Set Prices where orders will happen
 
   initialOrders(currentPrice.last); // Place Initial Orders. Decide the direction based on Last Price
-  //---
+
   return (INIT_SUCCEEDED);
 }
-//+------------------------------------------------------------------+
-//| Expert deinitialization function                                 |
-//+------------------------------------------------------------------+
+
 void OnDeinit(const int reason)
 {
   if (closePositionsOnStop == true)
@@ -276,22 +313,23 @@ void OnDeinit(const int reason)
   {
     closeAllOrders(); // TODO
   }
-
-  //---
 }
-//+------------------------------------------------------------------+
-//| Expert tick function                                             |
-//+------------------------------------------------------------------+
+
 void OnTick()
 {
   //---
 }
-//+------------------------------------------------------------------+
+
 void OnTradeTransaction(
     const MqlTradeTransaction &trans,
     const MqlTradeRequest &request,
     const MqlTradeResult &result)
 {
+  if (trans.order_state == ORDER_STATE_FILLED)
+  {
+    updateOrders(trans.order);
+  }
+
   //* Next Step, handle orders while running "OnTradeTransaction"
   // https://www.binance.com/en/support/faq/what-is-spot-grid-trading-and-how-does-it-work-d5f441e8ab544a5b98241e00efb3a4ab
 }
