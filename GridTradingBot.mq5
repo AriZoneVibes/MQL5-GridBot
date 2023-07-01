@@ -12,7 +12,6 @@
 #include <Trade\Trade.mqh>
 CTrade trade;
 
-//--- Input Parameters
 enum selectGridType
 {
   arithmetic, // Arithmetic Each Grid has an equal price difference
@@ -30,33 +29,34 @@ enum selectGridDirection
 // If they start to use optimization, update input to sinput
 // https://www.mql5.com/en/docs/basis/variables/inputvariables#sinput
 
-sinput int expertAdvisorID = 31254; // Expert Advisor ID "Magic Number"
+//--- Input Parameters
+input int expertAdvisorID = 31254; // Expert Advisor ID "Magic Number"
 
-sinput string currentSymbol; // Symbol
+input string currentSymbol = "USDJPY"; // Symbol
 
 input selectGridDirection gridDirection = neutralDirection; // Direction
 
 input group "Price Range";
-input double lowerPrice; // Lower Price
-input double upperPrice; // Upper Price
+input double lowerPrice = 120; // Lower Price
+input double upperPrice = 150; // Upper Price
 
 input group "Grid";
-input int gridSize;                         // Number of Grids
+input int gridSize = 20;                    // Number of Grids
 input selectGridType gridType = arithmetic; // Grid Type
 
 input group "Investment";
-input double initialMagin; // Initial Margin
-input int leverage = 20;   // Leverage
+input double initialMagin = 100; // Initial Margin
+input int leverage = 1;          // Leverage
 
-input group "Advanced";
-input bool gridTriggerActivation;    // Grid Trigger
-input double gridTriggerBottomPrice; // Bottom Price
-input double gridTriggerUpperPrice;  // Upper Price
-input bool stopTriggerActivation;    // Stop Trigger
-input double stopTriggerBottomPrice; // Bottom Price
-input double stopTriggerUpperPrice;  // Upper Price
-input bool cancelOrdersOnStop;       // Cancel all orders on stop
-input bool closePositionsOnStop;     // Close all positions on stop
+input group "Advanced";                   // TODO
+input bool gridTriggerActivation = false; // Grid Trigger
+input double gridTriggerBottomPrice;      // Bottom Price
+input double gridTriggerUpperPrice;       // Upper Price
+input bool stopTriggerActivation = false; // Stop Trigger
+input double stopTriggerBottomPrice;      // Bottom Price
+input double stopTriggerUpperPrice;       // Upper Price
+input bool cancelOrdersOnStop = false;    // Cancel all orders on stop
+input bool closePositionsOnStop = false;  // Close all positions on stop
 
 double currentMargin = 0;
 
@@ -100,12 +100,12 @@ bool dataValidation()
     Print("Investment cannot be lower or equal to zero");
     return false;
   }
-  if (gridTriggerUpperPrice <= gridTriggerBottomPrice)
+  if (gridTriggerUpperPrice <= gridTriggerBottomPrice && gridTriggerActivation == true)
   {
     Print("Grid Trigger Activation Upper Price cannot be lower or equal to the Lower Price");
     return false;
   }
-  if (stopTriggerUpperPrice <= stopTriggerBottomPrice)
+  if (stopTriggerUpperPrice <= stopTriggerBottomPrice && stopTriggerActivation == true)
   {
     Print("Grid Stop Activation Upper Price cannot be lower or equal to the Lower Price");
     return false;
@@ -163,7 +163,7 @@ void initialOrders(double currentPrice)
   gridPrice[i].ticket = 0;
   i++;
 
-  while (i <= ArraySize(gridPrice)) // Place Sell Orders
+  while (i < ArraySize(gridPrice)) // Place Sell Orders
   {
     gridPrice[i].direction = orderShort;
     placeOrder(i);
@@ -178,11 +178,11 @@ void placeOrder(int orderIndex)
   switch (gridPrice[orderIndex].direction)
   {
   case orderLong:
-    reply = trade.BuyLimit(orderSize, gridPrice[orderIndex].price);
+    reply = trade.BuyLimit(orderSize, gridPrice[orderIndex].price, NULL, 0, gridPrice[orderIndex + 1].price);
     break;
 
   case orderShort:
-    reply = trade.SellLimit(orderSize, gridPrice[orderIndex].price);
+    reply = trade.SellLimit(orderSize, gridPrice[orderIndex].price, NULL, 0, gridPrice[orderIndex - 1].price);
     break;
 
   case orderVoid:
@@ -198,7 +198,7 @@ void orderReply(bool reply)
 {
   if (!reply)
   {
-    Print("Order Limit method failed.");
+    Print("Order Limit failed.");
     Print("Return code=", trade.ResultRetcode(), ". Code description: ", trade.ResultRetcodeDescription());
     ExpertRemove();
   }
@@ -214,7 +214,13 @@ void updateOrders(ulong ticket)
   int orderIndex = 0; // Can make it so the indexFromTicket returns -1 if not found
 
   orderIndex = indexFromTicket(ticket);
-  gridPrice[orderIndex].direction = orderVoid;
+
+  if (orderIndex == -1)
+  {
+    return;
+  }
+
+  // trade.PositionClose(gridPrice[orderIndex].ticket);
 
   switch (gridPrice[orderIndex].direction)
   {
@@ -231,28 +237,24 @@ void updateOrders(ulong ticket)
   case orderVoid:
     break;
   }
+  gridPrice[orderIndex].direction = orderVoid;
+  gridPrice[orderIndex].ticket = 0;
 }
 
 int indexFromTicket(ulong ticket)
 {
-  // I can be your angle
-  // for (int i = 0; i < ArraySize(gridPrice); i++)
-  // {
-  //   if (ticket == gridPrice[i].ticket)
-  //   {
-  //     return i;
-  //   }
-  // }
-  // Print("Ticket not found");
-  // ExpertRemove();
-
-  // or yuor devil
-  int i = 0;
-  while (ticket != gridPrice[i].ticket)
+  Print("Ticket Activated ", ticket);
+  for (int i = 0; i < ArraySize(gridPrice); i++)
   {
-    i++;
+    Print("Searching. Currently: ", i);
+    Print("Current Ticket: ", gridPrice[i].ticket);
+    Print("Direction: ", gridPrice[i].direction);
+    if (ticket == gridPrice[i].ticket)
+      return i;
   }
-  return i;
+  Print("Ticket not found");
+  // ExpertRemove();
+  return -1;
 }
 
 void closeAllPositions()
@@ -279,6 +281,7 @@ int OnInit()
   // Check all Inputs are valid
   if (!dataValidation())
   {
+    Print("Init Failed");
     return (INIT_FAILED); // F
   }
 
@@ -286,7 +289,7 @@ int OnInit()
   trade.SetExpertMagicNumber(expertAdvisorID);
   trade.SetTypeFilling(ORDER_FILLING_RETURN);
   trade.LogLevel(2);
-  trade.SetAsyncMode(true);
+  trade.SetAsyncMode(false);
   // trade.SetDeviationInPoints(deviation);
   // * Ask if slippage is neccesary
 
@@ -298,7 +301,9 @@ int OnInit()
 
   fillPriceArray(); // Set Prices where orders will happen
 
-  initialOrders(currentPrice.last); // Place Initial Orders. Decide the direction based on Last Price
+  Print(currentPrice.last); // ! Change to currentprice.last  when outside of backtesting
+  Print(currentPrice.ask);
+  initialOrders(currentPrice.ask); // Place Initial Orders. Decide the direction based on Last Price
 
   return (INIT_SUCCEEDED);
 }
