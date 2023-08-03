@@ -303,8 +303,12 @@ int OnInit()
 
   fillPriceArray(); // Set Prices where orders will happen
 
-  Print("Current Price: ", symbolInfo.Ask());
-  initialOrders(symbolInfo.Ask()); // Place Initial Orders. Decide the direction based on Last Price
+  MqlTick currentPrice;
+
+  Print("Current Price: ", SymbolInfoTick(currentSymbol, currentPrice));
+
+  Print("Current Price: ", currentPrice.last);
+  initialOrders(currentPrice.ask); // Place Initial Orders. Decide the direction based on Last Price
 
   return (INIT_SUCCEEDED);
 }
